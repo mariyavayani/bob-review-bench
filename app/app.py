@@ -1,10 +1,6 @@
 """
 TaskFlow API — a small task-management REST service.
 
-This is the clean baseline used as the "main" branch for the Bob Review
-Bench demo. The feature branch (feature/task-priority-patch) adds a new
-endpoint that deliberately violates each of the standards documented in
-docs/, so the reviewer agents have something real to catch.
 """
 
 from flask import Flask, jsonify, request
