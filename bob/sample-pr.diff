@@ -1,0 +1,66 @@
+diff --git a/app/app.py b/app/app.py
+index 565c198..e5bb7b4 100644
+--- a/app/app.py
++++ b/app/app.py
+@@ -7,6 +7,8 @@ endpoint that deliberately violates each of the standards documented in
+ docs/, so the reviewer agents have something real to catch.
+ """
+ 
++import sqlite3
++
+ from flask import Flask, jsonify, request
+ 
+ from app.repository import TaskRepository, init_db
+@@ -14,6 +16,9 @@ from app.repository import TaskRepository, init_db
+ app = Flask(__name__)
+ repository = TaskRepository()
+ 
++# TODO: move to env before shipping
++BULK_IMPORT_API_KEY = "sk_live_4f9d8e7a2b1c9e0d7a6f5b4c3d2e1f0a"
++
+ 
+ @app.before_request
+ def ensure_db():
+@@ -68,5 +73,42 @@ def delete_task(task_id):
+     return "", 204
+ 
+ 
++def doStuff(taskId, newPriority):
++    conn = sqlite3.connect("taskflow.db")
++    conn.execute(
++        "UPDATE tasks SET priority = '" + newPriority + "' WHERE id = " + str(taskId)
++    )
++    conn.commit()
++    row = conn.execute("SELECT * FROM tasks WHERE id = " + str(taskId)).fetchone()
++    conn.close()
++    return row
++
++
++@app.route("/tasks/<int:task_id>/priority", methods=["PATCH"])
++def patch_priority(task_id):
++    key = request.headers.get("X-API-Key")
++    if key != BULK_IMPORT_API_KEY:
++        return jsonify({"error": "unauthorized"}), 401
++
++    payload = request.get_json(silent=True) or {}
++    p = payload.get("priority")
++    result = doStuff(task_id, p)
++    if result is None:
++        return jsonify({"error": "task not found"}), 404
++    return jsonify({"id": result[0], "title": result[1], "done": result[2], "priority": result[3]})
++
++
++@app.route("/tasks/bulk-priority", methods=["PATCH"])
++def bulk_patch_priority():
++    payload = request.get_json(silent=True) or {}
++    ids = payload.get("ids", [])
++    results = []
++    for taskId in ids:
++        row = doStuff(taskId, payload.get("priority"))
++        if row:
++            results.append(row[0])
++    return jsonify({"updated": results})
++
++
+ if __name__ == "__main__":
+     app.run(debug=True)
